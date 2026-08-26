@@ -1,0 +1,580 @@
+problem3
+
+code
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <termios.h>
+#include <unistd.h>
+
+#define INITIAL_BUFFER_SIZE 50
+
+/* =========================================================
+   LINKED LIST NODE FOR COMMAND HISTORY
+   ========================================================= */
+
+struct Node {
+    char *command;
+    struct Node *next;
+};
+
+/* Head and tail of history */
+struct Node *head = NULL;
+struct Node *tail = NULL;
+
+
+/* =========================================================
+   FUNCTION TO DISABLE / RESTORE TERMINAL MODE
+   ========================================================= */
+
+void enable_raw_mode(struct termios *old_terminal) {
+
+    struct termios new_terminal;
+
+    /* Get current terminal settings */
+    tcgetattr(STDIN_FILENO, old_terminal);
+
+    new_terminal = *old_terminal;
+
+    /*
+       Disable canonical mode.
+       This allows us to read individual keys immediately.
+    */
+    new_terminal.c_lflag &= ~(ICANON | ECHO);
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_terminal);
+}
+
+
+void disable_raw_mode(struct termios *old_terminal) {
+
+    /* Restore original terminal settings */
+    tcsetattr(STDIN_FILENO, TCSANOW, old_terminal);
+}
+
+
+/* =========================================================
+   ADD COMMAND TO HISTORY
+   ========================================================= */
+
+void add_history(const char *command) {
+
+    struct Node *new_node;
+
+    /* Allocate memory for new node */
+    new_node = malloc(sizeof(struct Node));
+
+    if (new_node == NULL) {
+        printf("\nMemory allocation failed!\n");
+        return;
+    }
+
+    /* Allocate memory for command */
+    new_node->command = malloc(strlen(command) + 1);
+
+    if (new_node->command == NULL) {
+        printf("\nMemory allocation failed!\n");
+        free(new_node);
+        return;
+    }
+
+    /* Copy command */
+    strcpy(new_node->command, command);
+
+    new_node->next = NULL;
+
+    /* First node */
+    if (head == NULL) {
+        head = new_node;
+        tail = new_node;
+    }
+
+    /* Add at end */
+    else {
+        tail->next = new_node;
+        tail = new_node;
+    }
+}
+
+
+/* =========================================================
+   DISPLAY COMMAND HISTORY
+   ========================================================= */
+
+void display_history() {
+
+    struct Node *current = head;
+    int number = 1;
+
+    printf("\n\n========== COMMAND HISTORY ==========\n");
+
+    while (current != NULL) {
+
+        printf("%d. %s\n", number, current->command);
+
+        current = current->next;
+        number++;
+    }
+
+    printf("=====================================\n");
+}
+
+
+/* =========================================================
+   COUNT HISTORY
+   ========================================================= */
+
+int count_history() {
+
+    struct Node *current = head;
+    int count = 0;
+
+    while (current != NULL) {
+
+        count++;
+
+        current = current->next;
+    }
+
+    return count;
+}
+
+
+/* =========================================================
+   GET COMMAND AT INDEX
+   ========================================================= */
+
+char *get_command(int index) {
+
+    struct Node *current = head;
+
+    int i = 0;
+
+    while (current != NULL) {
+
+        if (i == index)
+            return current->command;
+
+        current = current->next;
+        i++;
+    }
+
+    return NULL;
+}
+
+
+/* =========================================================
+   FREE HISTORY
+   ========================================================= */
+
+void free_history() {
+
+    struct Node *current = head;
+    struct Node *next_node;
+
+    while (current != NULL) {
+
+        next_node = current->next;
+
+        /* Free command memory */
+        free(current->command);
+
+        /* Free node memory */
+        free(current);
+
+        current = next_node;
+    }
+
+    head = NULL;
+    tail = NULL;
+}
+
+
+/* =========================================================
+   MAIN PROGRAM
+   ========================================================= */
+
+int main() {
+
+    struct termios old_terminal;
+
+    /*
+       Dynamically allocated input buffer
+    */
+    int buffer_size = INITIAL_BUFFER_SIZE;
+
+    char *input_buffer;
+
+    input_buffer = malloc(buffer_size);
+
+    if (input_buffer == NULL) {
+
+        printf("Initial memory allocation failed!\n");
+
+        return 1;
+    }
+
+
+    /*
+       Enable raw terminal mode
+       so arrow keys can be detected.
+    */
+
+    enable_raw_mode(&old_terminal);
+
+
+    printf("============================================\n");
+    printf(" COMMAND HISTORY & MEMORY MANAGEMENT\n");
+    printf("============================================\n");
+
+    printf("Type commands and press ENTER.\n");
+    printf("Use UP ARROW for previous command.\n");
+    printf("Use DOWN ARROW for next command.\n");
+    printf("Type exit to terminate.\n\n");
+
+
+    int length = 0;
+
+    int history_count = 0;
+
+    int history_position = 0;
+
+
+    /* =====================================================
+       MAIN INPUT LOOP
+       ===================================================== */
+
+    while (1) {
+
+        printf("\rshell> %s", input_buffer);
+
+        fflush(stdout);
+
+
+        /*
+           Read one character at a time.
+        */
+
+        char ch;
+
+        if (read(STDIN_FILENO, &ch, 1) != 1)
+            break;
+
+
+        /* =================================================
+           ENTER KEY
+           ================================================= */
+
+        if (ch == '\n' || ch == '\r') {
+
+            input_buffer[length] = '\0';
+
+            printf("\n");
+
+
+            /* Ignore empty commands */
+
+            if (length == 0) {
+
+                continue;
+            }
+
+
+            /* Exit command */
+
+            if (strcmp(input_buffer, "exit") == 0) {
+
+                break;
+            }
+
+
+            /*
+               Store command in history
+            */
+
+            add_history(input_buffer);
+
+            history_count = count_history();
+
+            history_position = history_count;
+
+
+            /*
+               Clear input buffer
+            */
+
+            length = 0;
+
+            input_buffer[0] = '\0';
+
+            continue;
+        }
+
+
+        /* =================================================
+           BACKSPACE
+           ================================================= */
+
+        if (ch == 127 || ch == 8) {
+
+            if (length > 0) {
+
+                length--;
+
+                input_buffer[length] = '\0';
+
+                printf("\b \b");
+
+                fflush(stdout);
+            }
+
+            continue;
+        }
+
+
+        /* =================================================
+           ESCAPE SEQUENCE
+           
+           UP ARROW:
+           
+           ESC [ A
+           
+           DOWN ARROW:
+           
+           ESC [ B
+           ================================================= */
+
+        if (ch == 27) {
+
+            char sequence[2];
+
+
+            /* Read '[' */
+
+            if (read(STDIN_FILENO, &sequence[0], 1) != 1)
+                continue;
+
+
+            if (sequence[0] == '[') {
+
+                /* Read A or B */
+
+                if (read(STDIN_FILENO, &sequence[1], 1) != 1)
+                    continue;
+
+
+                /* =========================================
+                   UP ARROW
+                   ========================================= */
+
+                if (sequence[1] == 'A') {
+
+                    if (history_count == 0)
+                        continue;
+
+
+                    /*
+                       Navigate to previous command
+                    */
+
+                    if (history_position > 0)
+                        history_position--;
+
+
+                    char *previous_command =
+                        get_command(history_position);
+
+
+                    if (previous_command != NULL) {
+
+                        /*
+                           Update input buffer
+                        */
+
+                        strcpy(input_buffer, previous_command);
+
+                        length = strlen(input_buffer);
+
+
+                        /*
+                           Clear current line
+                        */
+
+                        printf("\r\033[K");
+
+                        printf("shell> %s", input_buffer);
+
+                        fflush(stdout);
+                    }
+                }
+
+
+                /* =========================================
+                   DOWN ARROW
+                   ========================================= */
+
+                else if (sequence[1] == 'B') {
+
+                    if (history_count == 0)
+                        continue;
+
+
+                    /*
+                       Navigate to next command
+                    */
+
+                    if (history_position < history_count - 1) {
+
+                        history_position++;
+
+                        char *next_command =
+                            get_command(history_position);
+
+                        if (next_command != NULL) {
+
+                            /*
+                               Update input buffer
+                            */
+
+                            strcpy(input_buffer, next_command);
+
+                            length = strlen(input_buffer);
+                        }
+                    }
+
+                    else {
+
+                        /*
+                           Move beyond last command
+                           and clear input buffer.
+                        */
+
+                        history_position = history_count;
+
+                        input_buffer[0] = '\0';
+
+                        length = 0;
+                    }
+
+
+                    /*
+                       Refresh input line
+                    */
+
+                    printf("\r\033[K");
+
+                    printf("shell> %s", input_buffer);
+
+                    fflush(stdout);
+                }
+            }
+
+            continue;
+        }
+
+
+        /* =================================================
+           NORMAL CHARACTER
+           ================================================= */
+
+        if (ch >= 32 && ch <= 126) {
+
+            /*
+               Prevent buffer overflow.
+            */
+
+            if (length + 1 >= buffer_size) {
+
+                /*
+                   Resize buffer
+                */
+
+                int new_size = buffer_size * 2;
+
+                char *temp =
+                    realloc(input_buffer, new_size);
+
+
+                if (temp == NULL) {
+
+                    printf("\nMemory reallocation failed!\n");
+
+                    disable_raw_mode(&old_terminal);
+
+                    free(input_buffer);
+
+                    free_history();
+
+                    return 1;
+                }
+
+
+                /*
+                   Update buffer pointer
+                */
+
+                input_buffer = temp;
+
+                buffer_size = new_size;
+
+                printf("\n[Buffer resized to %d bytes]\n",
+                       buffer_size);
+
+                printf("shell> %s", input_buffer);
+
+                fflush(stdout);
+            }
+
+
+            /*
+               Add character to input buffer
+            */
+
+            input_buffer[length] = ch;
+
+            length++;
+
+            input_buffer[length] = '\0';
+
+
+            putchar(ch);
+
+            fflush(stdout);
+        }
+    }
+
+
+    /* =====================================================
+       RESTORE TERMINAL
+       ===================================================== */
+
+    disable_raw_mode(&old_terminal);
+
+
+    /* =====================================================
+       DISPLAY HISTORY
+       ===================================================== */
+
+    display_history();
+
+
+    /* =====================================================
+       RELEASE DYNAMIC MEMORY
+       ===================================================== */
+
+    free(input_buffer);
+
+    input_buffer = NULL;
+
+
+    free_history();
+
+
+    printf("\nAll dynamically allocated memory released.\n");
+
+    printf("Program completed successfully.\n");
+
+
+    return 0;
+}
