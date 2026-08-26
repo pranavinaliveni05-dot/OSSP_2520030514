@@ -1,0 +1,255 @@
+prog4.c
+
+
+code
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_INPUT 200
+#define MAX_TOKENS 50
+#define MAX_TOKEN_LENGTH 50
+
+struct Token {
+    char value[MAX_TOKEN_LENGTH];
+    char type[20];
+};
+
+void identifyToken(struct Token *token, int position) {
+
+    if (position == 0) {
+        strcpy(token->type, "COMMAND");
+    }
+    else if (token->value[0] == '-') {
+        strcpy(token->type, "OPTION");
+    }
+    else {
+        strcpy(token->type, "ARGUMENT");
+    }
+}
+
+void displayTokens(struct Token tokens[], int count) {
+
+    printf("\n========== TOKEN STREAM ==========\n");
+
+    for (int i = 0; i < count; i++) {
+
+        printf("Token %d : %-15s Type : %s\n",
+               i + 1,
+               tokens[i].value,
+               tokens[i].type);
+    }
+
+    printf("==================================\n");
+}
+
+int validateTokens(struct Token tokens[], int count) {
+
+    if (count == 0) {
+        printf("Error: No tokens found.\n");
+        return 0;
+    }
+
+    if (strcmp(tokens[0].type, "COMMAND") != 0) {
+        printf("Error: First token must be a command.\n");
+        return 0;
+    }
+
+    return 1;
+}
+
+void generateParseTree(struct Token tokens[], int count) {
+
+    printf("\n========== PARSE TREE ==========\n");
+
+    printf("COMMAND\n");
+    printf("|\n");
+    printf("+-- %s\n", tokens[0].value);
+
+    for (int i = 1; i < count; i++) {
+
+        if (strcmp(tokens[i].type, "OPTION") == 0) {
+
+            printf("+-- OPTION\n");
+            printf("    +-- %s\n", tokens[i].value);
+        }
+        else {
+
+            printf("+-- ARGUMENT\n");
+            printf("    +-- %s\n", tokens[i].value);
+        }
+    }
+
+    printf("================================\n");
+}
+
+void generateExecutionStructure(struct Token tokens[], int count) {
+
+    printf("\n====== EXECUTION STRUCTURE ======\n");
+
+    printf("Command : %s\n", tokens[0].value);
+
+    printf("Arguments/Options : ");
+
+    for (int i = 1; i < count; i++) {
+        printf("%s ", tokens[i].value);
+    }
+
+    printf("\n");
+    printf("=================================\n");
+}
+
+int main() {
+
+    char input[MAX_INPUT];
+    char originalInput[MAX_INPUT];
+
+    struct Token tokens[MAX_TOKENS];
+
+    int count = 0;
+
+    printf("========================================\n");
+    printf("          TOKENIZER AND PARSER\n");
+    printf("========================================\n");
+
+    printf("Enter input: ");
+
+    fgets(input, sizeof(input), stdin);
+
+    /* Remove newline */
+    input[strcspn(input, "\n")] = '\0';
+
+    /* Keep original input for debugging */
+    strcpy(originalInput, input);
+
+    /* Handle empty command */
+
+    if (strlen(input) == 0) {
+
+        printf("\nEmpty command detected.\n");
+        printf("Nothing to parse.\n");
+
+        return 0;
+    }
+
+    /* Tokenization */
+
+    char *token = strtok(input, " \t");
+
+    while (token != NULL && count < MAX_TOKENS) {
+
+        /* Prevent token overflow */
+
+        if (strlen(token) >= MAX_TOKEN_LENGTH) {
+
+            printf("\nError: Token too long.\n");
+
+            return 1;
+        }
+
+        /* Store token */
+
+        strcpy(tokens[count].value, token);
+
+        /* Identify token type */
+
+        identifyToken(&tokens[count], count);
+
+        count++;
+
+        /* Get next token */
+
+        token = strtok(NULL, " \t");
+    }
+
+    /* Display token stream */
+
+    displayTokens(tokens, count);
+
+    /* Validate token stream */
+
+    if (!validateTokens(tokens, count)) {
+
+        printf("\nInvalid token stream.\n");
+
+        return 1;
+    }
+
+    printf("\nToken stream is valid.\n");
+
+    /* Parser */
+
+    printf("\n========== PARSER ==========\n");
+
+    printf("Parser started.\n");
+
+    printf("Command detected: %s\n",
+           tokens[0].value);
+
+    for (int i = 1; i < count; i++) {
+
+        if (strcmp(tokens[i].type, "OPTION") == 0) {
+
+            printf("Option detected: %s\n",
+                   tokens[i].value);
+        }
+        else {
+
+            printf("Argument detected: %s\n",
+                   tokens[i].value);
+        }
+    }
+
+    /* Syntax validation */
+
+    int syntaxValid = 1;
+
+    for (int i = 0; i < count; i++) {
+
+        if (strcmp(tokens[i].value, "--") == 0) {
+
+            printf("\nSyntax Error: Invalid token '--'.\n");
+
+            syntaxValid = 0;
+        }
+    }
+
+    if (syntaxValid) {
+
+        printf("\nSyntax validation successful.\n");
+    }
+    else {
+
+        printf("\nSyntax validation failed.\n");
+
+        return 1;
+    }
+
+    /* Generate parse tree */
+
+    generateParseTree(tokens, count);
+
+    /* Generate execution structure */
+
+    generateExecutionStructure(tokens, count);
+
+    /* Debug information */
+
+    printf("\n========== DEBUG INFORMATION ==========\n");
+
+    printf("Input length     : %lu\n",
+           strlen(originalInput));
+
+    printf("Number of tokens : %d\n",
+           count);
+
+    printf("First token      : %s\n",
+           tokens[0].value);
+
+    printf("Parsing completed successfully.\n");
+
+    printf("========================================\n");
+
+    return 0;
+}
